@@ -29,6 +29,7 @@ class RasppiComms {
     const int __ack_size = 3;
 
     int __ready;
+    int __lastOrder;
 
     static void __listen(void *context);
 

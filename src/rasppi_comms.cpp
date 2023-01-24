@@ -23,6 +23,7 @@ RasppiComms::RasppiComms()  {
     __buffer_end = 0;
     cout << "Instantiated object" << endl;
     __ready = 0;
+    __lastOrder = 0;
     listen();  // start thread which listens from the serial bus
     // __establishConnection();  // Note that this is a blocking function so RaspPi MUST send acknowledge message
 };
@@ -167,7 +168,7 @@ Effects: Repeatedly takes mtx lock
 */
 void RasppiComms::__listen(void *context) {
     char temp[256]; // temp that constantly reads from micro usb
-    char mes_ack[8] = "IVRACK\n"; // acknowledge signal to send to rasppi if message was received (otherwise it will keep spamming the message)
+    char mes_ack[9] = "IVR0ACK\n"; // acknowledge signal to send to rasppi if message was received (otherwise it will keep spamming the message)
     RasppiComms* obj_inst = (RasppiComms*)context; // cast context to object reference
 
     /* main work that does not end until __listen_active is lowered */
@@ -179,6 +180,12 @@ void RasppiComms::__listen(void *context) {
         /* if no matching tag or buffer is full, continue */
         if ((!obj_inst->__compare_tag(temp)) || (obj_inst->__buffer_end >= 255))
             continue;
+
+        /* check for correct ordered message */
+        if(temp[3] != obj_inst->__lastOrder) {
+            fwrite(mes_ack, sizeof(char), 9, stdout); // rasppi probably didnt get ack
+            continue;
+        }
 
         /* this point is only reached if the tag was matched and the buffer has space to copy values */
 
@@ -202,7 +209,18 @@ void RasppiComms::__listen(void *context) {
         obj_inst->__mtx.give();
 
         /* write to rasppi that message was received */
-        fwrite(mes_ack, sizeof(char), 8, stdout);
+        fwrite(mes_ack, sizeof(char), 9, stdout);
+
+        if (obj_inst->__lastOrder < 9) {
+            obj_inst->__lastOrder++;
+            mes_ack[3] = obj_inst->__lastOrder;
+        }
+        else {
+            obj_inst->__lastOrder = 0;
+            mes_ack[3] = 0;
+        }
+
+        
     }
 
     /* free private buffer and resolve thread */
