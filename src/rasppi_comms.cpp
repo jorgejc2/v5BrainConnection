@@ -83,8 +83,9 @@ void RasppiComms::read_256_from_buff(char * array_out) {
             strncpy(array_out, __buffer, __buffer_end + 1);
         else {
             /* my personal method of determining when a buffer copy has failed */
-            array_out[0] = 'P';
-            array_out[1] = '\n';
+            array_out[0] = 'R';
+            array_out[1] = '0' + __lastOrder;
+            array_out[2] = '\n';
         }
         fill(__buffer, __buffer + 256, '\n');
         __buffer_end = 0;
@@ -168,6 +169,7 @@ Effects: Repeatedly takes mtx lock
 */
 void RasppiComms::__listen(void *context) {
     char temp[256]; // temp that constantly reads from micro usb
+    char prev_mes_ack[9] = "IVR_ACK\n"; // the previous ack message to send if rasppi did not receive it initialliy
     char mes_ack[9] = "IVR0ACK\n"; // acknowledge signal to send to rasppi if message was received (otherwise it will keep spamming the message)
     RasppiComms* obj_inst = (RasppiComms*)context; // cast context to object reference
 
@@ -178,12 +180,13 @@ void RasppiComms::__listen(void *context) {
         fread(temp, sizeof(char), 256, stdin);
 
         /* if no matching tag or buffer is full, continue */
-        if ((!obj_inst->__compare_tag(temp)) || (obj_inst->__buffer_end >= 255))
+        // if ((!obj_inst->__compare_tag(temp)) || (obj_inst->__buffer_end >= 255))
+        if (!obj_inst->__compare_tag(temp))
             continue;
 
         /* check for correct ordered message */
-        if(temp[3] != obj_inst->__lastOrder) {
-            fwrite(mes_ack, sizeof(char), 9, stdout); // rasppi probably didnt get ack
+        if(temp[3] != ('0' + obj_inst->__lastOrder)) {
+            fwrite(prev_mes_ack, sizeof(char), 9, stdout); // rasppi probably didnt get ack so send it again
             continue;
         }
 
@@ -205,21 +208,22 @@ void RasppiComms::__listen(void *context) {
         obj_inst->__scpy(temp);
         obj_inst->__ready = 0;
 
-        /* release lock */
-        obj_inst->__mtx.give();
-
         /* write to rasppi that message was received */
         fwrite(mes_ack, sizeof(char), 9, stdout);
 
+        prev_mes_ack[3] = mes_ack[3]; // update what the previous ack message is now 
+
         if (obj_inst->__lastOrder < 9) {
             obj_inst->__lastOrder++;
-            mes_ack[3] = obj_inst->__lastOrder;
+            mes_ack[3] = '0' + obj_inst->__lastOrder;
         }
         else {
             obj_inst->__lastOrder = 0;
-            mes_ack[3] = 0;
+            mes_ack[3] = '0';
         }
 
+        /* release lock */
+        obj_inst->__mtx.give();
         
     }
 
@@ -244,7 +248,7 @@ Effects: None
 */
 int RasppiComms::__compare_tag(char *cmp) {
     int same = 0;
-    for (int j = 0; j < 256 - __tag_size; j++) {
+    // for (int j = 0; j < 256 - __tag_size; j++) {
         for (int i = 0; i < __tag_size; i++) {
             same = 1;
             if (cmp[i] != __tag[i]) {
@@ -252,7 +256,7 @@ int RasppiComms::__compare_tag(char *cmp) {
                 break;
             }
         }
-    }
+    // }
     return same;
 }
 

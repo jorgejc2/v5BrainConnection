@@ -79,7 +79,7 @@ void autonomous() {
 	char buffer[256];
 	RasppiComms comms = RasppiComms();
 	// comms.listen();
-	pros::delay(5000);
+	pros::delay(2000);
 	// while(start_pos + 256 < 13960) {
 
 	
@@ -94,7 +94,7 @@ void autonomous() {
 		// start_pos += 256;
 		
 		pros::screen::print(TEXT_MEDIUM, 3, buffer);
-		pros::delay(100);
+		pros::delay(1000);
 	}
 	while(1) {pros::screen::print(TEXT_MEDIUM, 3, "past while loop");}
 	// start_pos = 0;
