@@ -30,6 +30,8 @@ class RasppiComms {
 
     int __ready;
     int __lastOrder;
+    char __prev_mes_ack[8];
+    char __mes_ack[8];
 
     static void __listen(void *context);
 

@@ -21,9 +21,15 @@ RasppiComms::RasppiComms()  {
     __listen_active = false;
     __buffer = new char[256];
     __buffer_end = 0;
-    cout << "Instantiated object" << endl;
+    // cout << "Instantiated object" << endl;
     __ready = 0;
     __lastOrder = 0;
+    char init_prev[8] = "IVR_ACK";
+    char init_ack[8] = "IVR0ACK";
+    for (int i = 0; i < 8; i++) {
+        __prev_mes_ack[i] = init_prev[i];
+        __mes_ack[i] = init_ack[i];
+    }
     listen();  // start thread which listens from the serial bus
     // __establishConnection();  // Note that this is a blocking function so RaspPi MUST send acknowledge message
 };
@@ -69,27 +75,26 @@ void RasppiComms::read_256_from_buff(char * array_out) {
     bool take;
     while (1) {
         take = __mtx.take();
-        // if (take)
-        //     // cout<<"take successful"<<endl;
-        // else {
-        //     // cout<<"fail take"<<endl;
-        //     // __mtx.give();
-        //     continue;
-        // }
+        
         if (!take)
             continue;
-            
-        if (__buffer_end > 0)
+        
+        // if (__buffer_end > 0)
+        //     strncpy(array_out, __buffer, __buffer_end + 1);
+        if (__ready)
             strncpy(array_out, __buffer, __buffer_end + 1);
         else {
-            /* my personal method of determining when a buffer copy has failed */
-            array_out[0] = 'R';
-            array_out[1] = '0' + __lastOrder;
-            array_out[2] = '\n';
+            __mtx.give();
+            continue;
+            // /* my personal method of determining when a buffer copy has failed */
+            // array_out[0] = 'R';
+            // array_out[1] = '0' + __lastOrder;
+            // array_out[2] = '\n';
         }
-        fill(__buffer, __buffer + 256, '\n');
+        __ready = 0;
+        // fill(__buffer, __buffer + 256, '\n');
         __buffer_end = 0;
-        __ready = 1;
+        // __ready = 0;
         // pthread_mutex_unlock(&__mtx);
         __mtx.give();
         // cout<<"end str copy"<<endl;
@@ -172,44 +177,62 @@ void RasppiComms::__listen(void *context) {
     char prev_mes_ack[9] = "IVR_ACK\n"; // the previous ack message to send if rasppi did not receive it initialliy
     char mes_ack[9] = "IVR0ACK\n"; // acknowledge signal to send to rasppi if message was received (otherwise it will keep spamming the message)
     RasppiComms* obj_inst = (RasppiComms*)context; // cast context to object reference
+    int take;
+    bool same;
 
     /* main work that does not end until __listen_active is lowered */
     while (obj_inst->__listen_active) {
 
-        /* serial port read*/
-        fread(temp, sizeof(char), 256, stdin);
+                /* take lock */
+        take = obj_inst->__mtx.take();
 
-        /* if no matching tag or buffer is full, continue */
-        // if ((!obj_inst->__compare_tag(temp)) || (obj_inst->__buffer_end >= 255))
-        if (!obj_inst->__compare_tag(temp))
+        if (!take)
             continue;
 
-        /* check for correct ordered message */
-        if(temp[3] != ('0' + obj_inst->__lastOrder)) {
-            fwrite(prev_mes_ack, sizeof(char), 9, stdout); // rasppi probably didnt get ack so send it again
-            continue;
-        }
-
-        /* this point is only reached if the tag was matched and the buffer has space to copy values */
-
-        /* take lock */
-        obj_inst->__mtx.take();
-
-        /* check if the object is ready to received the message (__ready is set after read_256_from_buffer is called)*/
-        if (obj_inst->__ready == 0) {
+        if (obj_inst->__ready) {
             obj_inst->__mtx.give();
             continue;
         }
+
+        /* serial port read*/
+        fread(temp, sizeof(char), 256, stdin);
+
+        /* check for correct ordered message */
+        same = true;
+        for (int i = 0; i < 4; i++) {
+            if (temp[i] != mes_ack[i]) {
+                same = false;
+            }
+        }
+        if (!same) {
+            fwrite(prev_mes_ack, sizeof(char), 8, stdout); // rasppi probably didnt get ack so send it again
+            obj_inst->__mtx.give();
+            continue;
+        }
+        // if(temp[3] != ('0' + obj_inst->__lastOrder)) {
+        //     fwrite(prev_mes_ack, sizeof(char), 9, stdout); // rasppi probably didnt get ack so send it again
+        //     continue;
+        // }
+
+        /* this point is only reached if the tag was matched and the buffer has space to copy values */
+
+
+
+        /* check if the object is ready to received the message (__ready is set after read_256_from_buffer is called)*/
+        // if (obj_inst->__ready == 0) {
+        //     obj_inst->__mtx.give();
+        //     continue;
+        // }
 
         /* clear and write to buffer */
         fill(obj_inst->__buffer, obj_inst->__buffer + 256, '\n');
         obj_inst->__buffer_end = 0;
         // obj_inst->__scpy(temp + obj_inst->__tag_size);
         obj_inst->__scpy(temp);
-        obj_inst->__ready = 0;
+        obj_inst->__ready = 1;
 
         /* write to rasppi that message was received */
-        fwrite(mes_ack, sizeof(char), 9, stdout);
+        fwrite(mes_ack, sizeof(char), 8, stdout);
 
         prev_mes_ack[3] = mes_ack[3]; // update what the previous ack message is now 
 
@@ -228,7 +251,7 @@ void RasppiComms::__listen(void *context) {
     }
 
     /* free private buffer and resolve thread */
-    cout<<"destroying object instance"<<endl;
+    // cout<<"destroying object instance"<<endl;
     delete[] obj_inst->__buffer;
     return;
 };

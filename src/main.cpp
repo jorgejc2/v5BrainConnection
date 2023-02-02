@@ -70,7 +70,7 @@ void autonomous() {
 	char in_buffer[256] = "IVRMessage from VEX\n";
 	char text_file[13960];
 	int start_pos = 0;
-	cout<<"Hello code 2"<<endl; // to check if terminal reads outputs
+	// cout<<"Hello code 2"<<endl; // to check if terminal reads outputs
 	pros::c::serctl(SERCTL_DISABLE_COBS,NULL); // necessary for PI to communicate to brain via serial
 
 	// pthread_t __listen1;
@@ -85,17 +85,65 @@ void autonomous() {
 	
 	int read_count = 0;
 
-	while (1) {
-		pros::screen::print(TEXT_MEDIUM, 0, "READ_COUNT %d",read_count);
-		comms.read_256_from_buff(buffer);
-		read_count++;
+	int co_size = 10;
+	char b1 [co_size];
+	char b2 [co_size];
+	char b3 [co_size];
+	char b4 [co_size];
+	char b5 [co_size];
 
+	while (1) {
+		if (read_count == 5)
+			break;
+		// pros::screen::print(TEXT_MEDIUM, 0, "READ_COUNT %d",read_count);
+		comms.read_256_from_buff(buffer);
+		
+
+		switch(read_count) {
+			case 0:
+				for (int i = 0; i < co_size; i++) 
+					b1[i] = buffer[i+4];
+				break;
+			case 1:
+				for (int i = 0; i < co_size; i++) 
+					b2[i] = buffer[i+4];
+				break;
+			case 2:
+				for (int i = 0; i < co_size; i++) 
+					b3[i] = buffer[i+4];
+				break;
+			case 3:
+				for (int i = 0; i < co_size; i++) 
+					b4[i] = buffer[i+4];
+				break;
+			case 4:
+				for (int i = 0; i < co_size; i++) 
+					b5[i] = buffer[i+4];
+				break;
+		}
+
+		read_count++;
 		// strncpy(text_file + start_pos, buffer, 256);
 		// start_pos += 256;
 		
-		pros::screen::print(TEXT_MEDIUM, 3, buffer);
-		pros::delay(1000);
+		// pros::screen::print(TEXT_MEDIUM, 3, buffer);
+		// pros::delay(1000);
+		// pros::delay(50);
 	}
+
+	pros::delay(5000);
+
+	// while (1) {
+	for (int i = 0; i < co_size; i++) {
+		pros::screen::print(TEXT_SMALL, i*8, 1*16, "%c", b1[i]);
+		pros::screen::print(TEXT_SMALL, i*8, 3*16, "%c", b2[i]);
+		pros::screen::print(TEXT_SMALL, i*8, 5*16, "%c", b3[i]);
+		pros::screen::print(TEXT_SMALL, i*8, 7*16, "%c", b4[i]);
+		pros::screen::print(TEXT_SMALL, i*8, 9*16, "%c", b5[i]);
+	}
+
+	while (1) {}
+
 	while(1) {pros::screen::print(TEXT_MEDIUM, 3, "past while loop");}
 	// start_pos = 0;
 	// while (start_pos + 256 < 13960) {
