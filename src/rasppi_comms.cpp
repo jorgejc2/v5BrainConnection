@@ -71,7 +71,7 @@ Effects: Takes mtx lock for a period of time
 */
 void RasppiComms::read_256_from_buff(char * array_out) {
     // pthread_mutex_lock(&__mtx);
-    // cout<<"Begin str copy"<<endl;
+
     bool take;
     while (1) {
         take = __mtx.take();
@@ -79,29 +79,58 @@ void RasppiComms::read_256_from_buff(char * array_out) {
         if (!take)
             continue;
         
-        // if (__buffer_end > 0)
-        //     strncpy(array_out, __buffer, __buffer_end + 1);
         if (__ready)
             strncpy(array_out, __buffer, __buffer_end + 1);
         else {
             __mtx.give();
             continue;
-            // /* my personal method of determining when a buffer copy has failed */
-            // array_out[0] = 'R';
-            // array_out[1] = '0' + __lastOrder;
-            // array_out[2] = '\n';
         }
         __ready = 0;
-        // fill(__buffer, __buffer + 256, '\n');
         __buffer_end = 0;
-        // __ready = 0;
         // pthread_mutex_unlock(&__mtx);
         __mtx.give();
-        // cout<<"end str copy"<<endl;
         break;
     }
 
     return;
+}
+
+int RasppiComms::append_coords(std::vector<double>& cood_array, char * str_array, int& idx) {
+    int size = cood_array.size();
+    int f = 0;
+
+    int str_start = 0;
+		for (int i = 1; i < 256; i++) {
+            if (str_array[i-1] == 'F') {
+                f = -1;
+                break;
+            }
+
+			if (str_array[i-1] == '{')
+				str_start = i;
+
+			if (str_array[i] == ' ')
+				str_start++;
+
+			if (str_array[i] == ',') {
+				str_array[i] = '\n';
+				cood_array[idx] = stod(&str_array[str_start]);
+				str_start = i + 1;
+				idx = (idx + 1) % size;
+			}
+
+
+			if (str_array[i] == '}') {
+				str_array[i] = '\n';
+				cood_array[idx] = stod(&str_array[str_start]);
+				idx = (idx + 1) % size;
+				break;
+			}
+		}
+
+
+    return f; // return updated position of idx
+
 }
 
 /*
@@ -122,10 +151,8 @@ void RasppiComms::__establishConnection() {
     int match = 0;
     char message [7] = "IVRACK";
     while (!ack) {
-        // fwrite(message, sizeof(char), 9, stdout);
         fwrite(message, sizeof(char), 7, stdout);
         __mtx.take();
-        // fwrite(__buffer, sizeof(char), 256, stdout);
         if (__verify_buffer() != -1 && __verify_ack() != -1) 
             ack = 1;
         __mtx.give();
@@ -209,20 +236,6 @@ void RasppiComms::__listen(void *context) {
             obj_inst->__mtx.give();
             continue;
         }
-        // if(temp[3] != ('0' + obj_inst->__lastOrder)) {
-        //     fwrite(prev_mes_ack, sizeof(char), 9, stdout); // rasppi probably didnt get ack so send it again
-        //     continue;
-        // }
-
-        /* this point is only reached if the tag was matched and the buffer has space to copy values */
-
-
-
-        /* check if the object is ready to received the message (__ready is set after read_256_from_buffer is called)*/
-        // if (obj_inst->__ready == 0) {
-        //     obj_inst->__mtx.give();
-        //     continue;
-        // }
 
         /* clear and write to buffer */
         fill(obj_inst->__buffer, obj_inst->__buffer + 256, '\n');
@@ -255,10 +268,6 @@ void RasppiComms::__listen(void *context) {
     delete[] obj_inst->__buffer;
     return;
 };
-
-// void RasppiComms::__stopListen() {
-//     (void) pthread_join(__listen1, NULL);
-// }
 
 /*
 Description: compares tag from message to private tag

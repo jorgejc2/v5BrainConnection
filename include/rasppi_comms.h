@@ -13,6 +13,8 @@ class RasppiComms {
 
     void read_256_from_buff(char * array_out);
 
+    int append_coords(std::vector<double>& cood_array, char * str_array, int& idx);
+
     void stopListen();
 
     private:
