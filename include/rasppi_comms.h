@@ -5,7 +5,7 @@
 class RasppiComms {
     public:
 
-    RasppiComms();
+    RasppiComms(int comm_ways);
 
     ~RasppiComms();
 
@@ -34,8 +34,11 @@ class RasppiComms {
     int __lastOrder;
     char __prev_mes_ack[8];
     char __mes_ack[8];
+    int __comm_ways;
 
-    static void __listen(void *context);
+    static void __listen_2way(void *context);
+
+    static void __listen_1way(void *context);
 
     void __establishConnection();
 

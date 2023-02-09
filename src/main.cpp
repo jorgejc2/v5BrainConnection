@@ -77,24 +77,36 @@ void autonomous() {
 	// pthread_create(&__listen1, NULL, fake_funct, NULL);
 	
 	char buffer[256];
-	RasppiComms comms = RasppiComms();
+	RasppiComms comms = RasppiComms(1);
 	// comms.listen();
 	pros::delay(2000);
 	// while(start_pos + 256 < 13960) {
 
-	vector<double> coods(15,0);
+	vector<double> coods(4,0);
 	int coods_idx = 0;
 	int done = 0;
 
-	while(1) {
+	int num_messages = 0;
+	int read_count = 0;
 
-		// pros::screen::print(TEXT_MEDIUM, 0, "READ_COUNT %d",read_count);
+	while(1) {
+	// for (int i = 0; i < 1; i++) {
+
+		pros::screen::print(TEXT_MEDIUM, 0, "READ_COUNT %d",read_count);
+		pros::screen::print(TEXT_SMALL, 1, "cood: %f", coods[0]);
+		pros::screen::print(TEXT_SMALL, 3, "cood: %f", coods[1]);
+		pros::screen::print(TEXT_SMALL, 5, "cood: %f", coods[2]);
+		pros::screen::print(TEXT_SMALL, 7, "cood: %f", coods[3]);
+		// pros::screen::print(TEXT_SMALL, 9, "cood: %f", coods[4]);
+		read_count++;
 		comms.read_256_from_buff(buffer);
 
 		done = comms.append_coords(coods, buffer, coods_idx);
+		num_messages++;
 
 		if (done < 0)
 			break;
+		
 	}
 
 	/* print the first five values in the vector */
@@ -102,7 +114,9 @@ void autonomous() {
 	pros::screen::print(TEXT_SMALL, 3, "cood: %f", coods[1]);
 	pros::screen::print(TEXT_SMALL, 5, "cood: %f", coods[2]);
 	pros::screen::print(TEXT_SMALL, 7, "cood: %f", coods[3]);
-	pros::screen::print(TEXT_SMALL, 9, "cood: %f", coods[4]);
+	// pros::screen::print(TEXT_SMALL, 9, "cood: %f", coods[4]);
+	pros::screen::print(TEXT_SMALL, 11, "num_messages: %d", num_messages);
+
 
 	comms.~RasppiComms();
 

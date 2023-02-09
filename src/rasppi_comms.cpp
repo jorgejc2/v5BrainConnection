@@ -17,7 +17,8 @@ Ouputs: None
 Returns: None
 Effects: Initializes private buffer and thread for listening from serial port
 */
-RasppiComms::RasppiComms()  {
+RasppiComms::RasppiComms(int comm_ways)  {
+    __comm_ways = comm_ways;
     __listen_active = false;
     __buffer = new char[256];
     __buffer_end = 0;
@@ -57,7 +58,14 @@ Effects: Creates a thread
 bool RasppiComms::listen() {
     __listen_active = true;
     // return (pthread_create(&__listen1, NULL, __listen, this) == 0);
-    pros::Task my_task(__listen, (void *)this, "ListenTask");
+
+    if(__comm_ways == 1) {
+        pros::Task my_task(__listen_1way, (void *)this, "ListenTask");
+    }
+    else if (__comm_ways == 2) {
+        pros::Task my_task(__listen_2way, (void *)this, "ListenTask");
+    }
+    
     return 1;
 };
 
@@ -106,7 +114,7 @@ int RasppiComms::append_coords(std::vector<double>& cood_array, char * str_array
                 break;
             }
 
-			if (str_array[i-1] == '{')
+			if (str_array[i-1] == '(')
 				str_start = i;
 
 			if (str_array[i] == ' ')
@@ -120,7 +128,7 @@ int RasppiComms::append_coords(std::vector<double>& cood_array, char * str_array
 			}
 
 
-			if (str_array[i] == '}') {
+			if (str_array[i] == ')') {
 				str_array[i] = '\n';
 				cood_array[idx] = stod(&str_array[str_start]);
 				idx = (idx + 1) % size;
@@ -144,20 +152,6 @@ void RasppiComms::stopListen() {
     __listen_active = false;
     // __stopListen();
 };
-
-
-void RasppiComms::__establishConnection() {
-    int ack = 0;
-    int match = 0;
-    char message [7] = "IVRACK";
-    while (!ack) {
-        fwrite(message, sizeof(char), 7, stdout);
-        __mtx.take();
-        if (__verify_buffer() != -1 && __verify_ack() != -1) 
-            ack = 1;
-        __mtx.give();
-    }
-}
 
 /* 
 Note that since this reads the buffer, it should only be invoked when the lock is held.
@@ -199,7 +193,7 @@ Outputs: None
 Returns: None
 Effects: Repeatedly takes mtx lock
 */
-void RasppiComms::__listen(void *context) {
+void RasppiComms::__listen_2way(void *context) {
     char temp[256]; // temp that constantly reads from micro usb
     char prev_mes_ack[9] = "IVR_ACK\n"; // the previous ack message to send if rasppi did not receive it initialliy
     char mes_ack[9] = "IVR0ACK\n"; // acknowledge signal to send to rasppi if message was received (otherwise it will keep spamming the message)
@@ -257,6 +251,60 @@ void RasppiComms::__listen(void *context) {
             obj_inst->__lastOrder = 0;
             mes_ack[3] = '0';
         }
+
+        /* release lock */
+        obj_inst->__mtx.give();
+        
+    }
+
+    /* free private buffer and resolve thread */
+    // cout<<"destroying object instance"<<endl;
+    delete[] obj_inst->__buffer;
+    return;
+};
+
+void RasppiComms::__listen_1way(void *context) {
+    char temp[256]; // temp that constantly reads from micro usb
+    char mes_ack[4] = "IVR"; // acknowledge signal to send to rasppi if message was received (otherwise it will keep spamming the message)
+    RasppiComms* obj_inst = (RasppiComms*)context; // cast context to object reference
+    int take;
+    bool same;
+
+    /* main work that does not end until __listen_active is lowered */
+    while (obj_inst->__listen_active) {
+
+                /* take lock */
+        take = obj_inst->__mtx.take();
+
+        if (!take)
+            continue;
+
+        if (obj_inst->__ready) {
+            obj_inst->__mtx.give();
+            continue;
+        }
+
+        /* serial port read*/
+        fread(temp, sizeof(char), 256, stdin);
+
+        /* check for correct ordered message */
+        same = true;
+        for (int i = 0; i < 3; i++) {
+            if (temp[i] != mes_ack[i]) {
+                same = false;
+            }
+        }
+        if (!same) {
+            obj_inst->__mtx.give();
+            continue;
+        }
+
+        /* clear and write to buffer */
+        fill(obj_inst->__buffer, obj_inst->__buffer + 256, '\n');
+        obj_inst->__buffer_end = 0;
+        // obj_inst->__scpy(temp + obj_inst->__tag_size);
+        obj_inst->__scpy(temp);
+        obj_inst->__ready = 1;
 
         /* release lock */
         obj_inst->__mtx.give();
