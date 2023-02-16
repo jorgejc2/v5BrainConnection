@@ -1,4 +1,5 @@
 #include "../include/rasppi_comms.h"
+#include "pros/rtos.h"
 #include <stdio.h>
 #include <iostream>
 #include <string.h>
@@ -8,7 +9,7 @@
 using namespace std;
 
 // pthread_mutex_t RasppiComms::__mtx = PTHREAD_MUTEX_INITIALIZER;
-pros::Mutex RasppiComms::__mtx; // mutex lock for altering __buffer and __ready 
+// pros::Mutex RasppiComms::__mtx; // mutex lock for altering __buffer and __ready 
 
 /*
 Description: Creates an instance of RasspiComms object
@@ -25,6 +26,11 @@ RasppiComms::RasppiComms(int comm_ways)  {
     // cout << "Instantiated object" << endl;
     __ready = 0;
     __lastOrder = 0;
+    __startModelFlag = 0;
+
+    // __mtx = pros::mutex_t
+    __mtx = (pros::Mutex*)malloc(sizeof(pros::Mutex));
+    __mtx = new pros::Mutex();
     char init_prev[8] = "IVR_ACK";
     char init_ack[8] = "IVR0ACK";
     for (int i = 0; i < 8; i++) {
@@ -59,12 +65,12 @@ bool RasppiComms::listen() {
     __listen_active = true;
     // return (pthread_create(&__listen1, NULL, __listen, this) == 0);
 
-    if(__comm_ways == 1) {
+    // if(__comm_ways == 1) {
         pros::Task my_task(__listen_1way, (void *)this, "ListenTask");
-    }
-    else if (__comm_ways == 2) {
-        pros::Task my_task(__listen_2way, (void *)this, "ListenTask");
-    }
+    // }
+    // else if (__comm_ways == 2) {
+    //     pros::Task my_task(__listen_2way, (void *)this, "ListenTask");
+    // }
     
     return 1;
 };
@@ -82,21 +88,20 @@ void RasppiComms::read_256_from_buff(char * array_out) {
 
     bool take;
     while (1) {
-        take = __mtx.take();
+        take = __mtx->take();
         
         if (!take)
             continue;
-        
+                
         if (__ready)
             strncpy(array_out, __buffer, __buffer_end + 1);
         else {
-            __mtx.give();
+            __mtx->give();
             continue;
         }
         __ready = 0;
         __buffer_end = 0;
-        // pthread_mutex_unlock(&__mtx);
-        __mtx.give();
+        __mtx->give();
         break;
     }
 
@@ -204,14 +209,14 @@ void RasppiComms::__listen_2way(void *context) {
     /* main work that does not end until __listen_active is lowered */
     while (obj_inst->__listen_active) {
 
-                /* take lock */
-        take = obj_inst->__mtx.take();
+        /* take lock */
+        take = obj_inst->__mtx->take();
 
         if (!take)
             continue;
 
         if (obj_inst->__ready) {
-            obj_inst->__mtx.give();
+            obj_inst->__mtx->give();
             continue;
         }
 
@@ -227,7 +232,7 @@ void RasppiComms::__listen_2way(void *context) {
         }
         if (!same) {
             fwrite(prev_mes_ack, sizeof(char), 8, stdout); // rasppi probably didnt get ack so send it again
-            obj_inst->__mtx.give();
+            obj_inst->__mtx->give();
             continue;
         }
 
@@ -253,7 +258,7 @@ void RasppiComms::__listen_2way(void *context) {
         }
 
         /* release lock */
-        obj_inst->__mtx.give();
+        obj_inst->__mtx->give();
         
     }
 
@@ -263,24 +268,60 @@ void RasppiComms::__listen_2way(void *context) {
     return;
 };
 
+void RasppiComms::startModel() {
+    // int take;
+    // while(1) {
+    //     take = __mtx.take();
+    //     if (!take)
+    //         continue;
+    //     __startModelFlag = 1;
+    //     __mtx.give();
+    //     break;
+
+    // }
+    __startModelFlag = 1;
+    
+    return;
+}
+
+void RasppiComms::lowerModel() {
+    int take;
+    while(1) {
+        take = __mtx->take();
+        if (!take)
+            continue;
+        __startModelFlag = 0;
+        __mtx->give();
+        break;
+
+    }
+}
+
 void RasppiComms::__listen_1way(void *context) {
     char temp[256]; // temp that constantly reads from micro usb
     char mes_ack[4] = "IVR"; // acknowledge signal to send to rasppi if message was received (otherwise it will keep spamming the message)
+    char ivr_r[5] = "IVRR";
     RasppiComms* obj_inst = (RasppiComms*)context; // cast context to object reference
     int take;
     bool same;
 
-    /* main work that does not end until __listen_active is lowered */
-    while (obj_inst->__listen_active) {
 
-                /* take lock */
-        take = obj_inst->__mtx.take();
+    /* main work that does not end until __listen_active is lowered */
+    // while (obj_inst->__listen_active) {
+    while(1) {
+        cout<<"IVRR"; // for some reason only gets read once
+
+        /* take lock */
+        take = obj_inst->__mtx->take();
 
         if (!take)
             continue;
 
+        // if (obj_inst->__startModelFlag == 0)
+        
+
         if (obj_inst->__ready) {
-            obj_inst->__mtx.give();
+            obj_inst->__mtx->give();
             continue;
         }
 
@@ -295,7 +336,9 @@ void RasppiComms::__listen_1way(void *context) {
             }
         }
         if (!same) {
-            obj_inst->__mtx.give();
+            
+            obj_inst->__mtx->give();
+            
             continue;
         }
 
@@ -307,7 +350,7 @@ void RasppiComms::__listen_1way(void *context) {
         obj_inst->__ready = 1;
 
         /* release lock */
-        obj_inst->__mtx.give();
+        obj_inst->__mtx->give();
         
     }
 

@@ -17,10 +17,14 @@ class RasppiComms {
 
     void stopListen();
 
+    void startModel();
+
+    void lowerModel();
+
     private:
 
     // static pthread_mutex_t __mtx;
-    static pros::Mutex __mtx;
+    pros::Mutex* __mtx;
     pthread_t __listen1;
     bool __listen_active;
     char * __buffer;
@@ -35,6 +39,7 @@ class RasppiComms {
     char __prev_mes_ack[8];
     char __mes_ack[8];
     int __comm_ways;
+    int __startModelFlag;
 
     static void __listen_2way(void *context);
 

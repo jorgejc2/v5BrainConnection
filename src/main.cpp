@@ -64,23 +64,36 @@ void *fake_funct(void *context) {int i = 0; return 0;};
  * from where it left off.
  */
 void autonomous() {
-	// double curr_heading;
-	// __fpurge(stdout);
 
-	char in_buffer[256] = "IVRMessage from VEX\n";
-	char text_file[13960];
-	int start_pos = 0;
-	// cout<<"Hello code 2"<<endl; // to check if terminal reads outputs
 	pros::c::serctl(SERCTL_DISABLE_COBS,NULL); // necessary for PI to communicate to brain via serial
 
-	// pthread_t __listen1;
-	// pthread_create(&__listen1, NULL, fake_funct, NULL);
-	
 	char buffer[256];
 	RasppiComms comms = RasppiComms(1);
-	// comms.listen();
-	pros::delay(2000);
-	// while(start_pos + 256 < 13960) {
+
+	// while(1) {
+	// 	fwrite("IVRR", sizeof(char), 5, stdout);
+	// }
+	
+	pros::screen::print(TEXT_SMALL, 1, "Inside auton");
+	comms.startModel();
+	pros::screen::print(TEXT_SMALL, 1, "Released startModel");
+
+	// char modelStartMsg[5] = "IVRR";
+	// bool same = 0;
+	// while (true) {
+	// 	comms.read_256_from_buff(buffer);
+	// 	same = 1;
+	// 	for (int i = 0; i < 4; i++) {
+	// 		if (buffer[i] != modelStartMsg[i])
+	// 			same = 0;
+	// 	}
+	// 	pros::screen::print(TEXT_SMALL, 3, buffer);
+	// 	if (same) {
+	// 		comms.lowerModel();
+	// 		break;
+	// 	}
+	// }
+	pros::screen::print(TEXT_SMALL, 1, "Model started");
 
 	vector<double> coods(4,0);
 	int coods_idx = 0;
@@ -90,14 +103,12 @@ void autonomous() {
 	int read_count = 0;
 
 	while(1) {
-	// for (int i = 0; i < 1; i++) {
 
 		pros::screen::print(TEXT_MEDIUM, 0, "READ_COUNT %d",read_count);
 		pros::screen::print(TEXT_SMALL, 1, "cood: %f", coods[0]);
 		pros::screen::print(TEXT_SMALL, 3, "cood: %f", coods[1]);
 		pros::screen::print(TEXT_SMALL, 5, "cood: %f", coods[2]);
 		pros::screen::print(TEXT_SMALL, 7, "cood: %f", coods[3]);
-		// pros::screen::print(TEXT_SMALL, 9, "cood: %f", coods[4]);
 		read_count++;
 		comms.read_256_from_buff(buffer);
 
@@ -109,30 +120,9 @@ void autonomous() {
 		
 	}
 
-	/* print the first five values in the vector */
-	pros::screen::print(TEXT_SMALL, 1, "cood: %f", coods[0]);
-	pros::screen::print(TEXT_SMALL, 3, "cood: %f", coods[1]);
-	pros::screen::print(TEXT_SMALL, 5, "cood: %f", coods[2]);
-	pros::screen::print(TEXT_SMALL, 7, "cood: %f", coods[3]);
-	// pros::screen::print(TEXT_SMALL, 9, "cood: %f", coods[4]);
-	pros::screen::print(TEXT_SMALL, 11, "num_messages: %d", num_messages);
-
-
 	comms.~RasppiComms();
 
 	return;
-
-
-	vector<tuple<int, int, int>> waypoints {
-		tuple<int, int, int> {0, 0, 20},
-		tuple<int, int, int> { -1, 1, 20}, 
-		tuple<int, int, int> { -4, 5, 20}, 
-		tuple<int, int, int> { -8, 10, 20}, 
-		tuple<int, int, int> { -4, 15, 20}, 
-		tuple<int, int, int> { 0, 20, 20},
-		tuple<int, int, int> { 4, 25, 20}
-	};
-
 }
 
 /**
@@ -151,17 +141,28 @@ void autonomous() {
 void opcontrol() {
 	pros::Controller master(pros::E_CONTROLLER_MASTER);
 
-	while (true) {
-		pros::lcd::print(0, "%d %d %d", (pros::lcd::read_buttons() & LCD_BTN_LEFT) >> 2,
-		                 (pros::lcd::read_buttons() & LCD_BTN_CENTER) >> 1,
-		                 (pros::lcd::read_buttons() & LCD_BTN_RIGHT) >> 0);
-		int left = master.get_analog(ANALOG_LEFT_Y);
-		int right = master.get_analog(ANALOG_RIGHT_Y);
+	// while (true) {
+	// 	// pros::lcd::print(0, "%d %d %d", (pros::lcd::read_buttons() & LCD_BTN_LEFT) >> 2,
+	// 	//                  (pros::lcd::read_buttons() & LCD_BTN_CENTER) >> 1,
+	// 	//                  (pros::lcd::read_buttons() & LCD_BTN_RIGHT) >> 0);
+	// 	// int left = master.get_analog(ANALOG_LEFT_Y);
+	// 	// int right = master.get_analog(ANALOG_RIGHT_Y);
 
-		back_left_mtr = left;
-		front_left_mtr = left;
-		back_right_mtr = right;
-		front_right_mtr = right;
-		pros::delay(20);
+	// 	// back_left_mtr = left;
+	// 	// front_left_mtr = left;
+	// 	// back_right_mtr = right;
+	// 	// front_right_mtr = right;
+	// 	// pros::delay(20);
+
+
+	// }
+
+	pros::screen::print(TEXT_SMALL, 1, "Waiting on controller");
+	while (true) {
+		if (master.get_digital(pros::E_CONTROLLER_DIGITAL_A)) {
+			break;
+		}
 	}
+	pros::screen::print(TEXT_SMALL, 1, "Starting model");
+	autonomous();
 }
